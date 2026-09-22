@@ -8,6 +8,8 @@
 </head>
 <body>
   <main>
+    <div id="auth-bar" class="auth-bar"></div>
+
     <header>
       <h1>Top 10 Steam Games</h1>
       <p class="subtitle">Ranked by current concurrent players</p>
@@ -19,6 +21,15 @@
 
     <div id="status"></div>
     <ol id="game-list" class="game-list"></ol>
+
+    <section id="recs-section" class="recs-section" hidden>
+      <header class="recs-header">
+        <h2>Recommended For You</h2>
+        <p id="recs-subtitle" class="subtitle"></p>
+      </header>
+      <div id="recs-status"></div>
+      <ol id="recs-list" class="game-list"></ol>
+    </section>
   </main>
 
   <script src="/app.js"></script>

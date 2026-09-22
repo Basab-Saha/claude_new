@@ -2,92 +2,32 @@ const http = require('http');
 const path = require('path');
 const fs = require('fs');
 
-const PORT = process.env.PORT || 3000;
-const TOP_N = 10;
-const CACHE_TTL_MS = 60 * 1000;
+const { PORT, BASE_URL } = require('./lib/config');
+const { parseCookies, serializeCookie } = require('./lib/cookies');
+const { createSession, getSession, destroySession } = require('./lib/sessions');
+const { buildLoginUrl, verifyAssertion } = require('./lib/steamOpenId');
+const { getPlayerSummary } = require('./lib/steamApi');
+const { getTopGames } = require('./lib/topGames');
+const { buildRecommendations } = require('./lib/recommendations');
 
-const CHARTS_URL = 'https://api.steampowered.com/ISteamChartsService/GetMostPlayedGames/v1/';
-const APPDETAILS_URL = 'https://store.steampowered.com/api/appdetails';
-const CURRENT_PLAYERS_URL = 'https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/';
-
-let cache = { data: null, fetchedAt: 0 };
-
-async function fetchJson(url) {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Request to ${url} failed with status ${res.status}`);
-  }
-  return res.json();
-}
-
-async function fetchGameDetails(appid) {
-  try {
-    const json = await fetchJson(`${APPDETAILS_URL}?appids=${appid}&filters=basic`);
-    const entry = json[appid];
-    if (entry && entry.success && entry.data) {
-      return {
-        name: entry.data.name,
-        headerImage: entry.data.header_image || null,
-      };
-    }
-  } catch (err) {
-    console.error(`Failed to fetch details for appid ${appid}:`, err.message);
-  }
-  return { name: `App ${appid}`, headerImage: null };
-}
-
-async function fetchCurrentPlayers(appid) {
-  try {
-    const json = await fetchJson(`${CURRENT_PLAYERS_URL}?appid=${appid}&format=json`);
-    const count = json?.response?.player_count;
-    return typeof count === 'number' ? count : 0;
-  } catch (err) {
-    console.error(`Failed to fetch current players for appid ${appid}:`, err.message);
-    return 0;
-  }
-}
-
-async function getTopGames() {
-  const now = Date.now();
-  if (cache.data && now - cache.fetchedAt < CACHE_TTL_MS) {
-    return cache.data;
-  }
-
-  // GetMostPlayedGames gives us the candidate app IDs (ranked by Steam's own
-  // charts), but doesn't include a live player count in its response, so we
-  // fetch the actual current player count for each one separately.
-  const chartsJson = await fetchJson(CHARTS_URL);
-  const ranks = chartsJson?.response?.ranks || [];
-  const topRanks = ranks.slice(0, TOP_N);
-
-  const [details, currentPlayers] = await Promise.all([
-    Promise.all(topRanks.map((r) => fetchGameDetails(r.appid))),
-    Promise.all(topRanks.map((r) => fetchCurrentPlayers(r.appid))),
-  ]);
-
-  const games = topRanks.map((rank, i) => ({
-    rank: rank.rank ?? i + 1,
-    appid: rank.appid,
-    name: details[i].name,
-    headerImage: details[i].headerImage,
-    currentPlayers: currentPlayers[i],
-    storeUrl: `https://store.steampowered.com/app/${rank.appid}`,
-  }));
-
-  cache = { data: games, fetchedAt: now };
-  return games;
-}
-
+const PUBLIC_DIR = path.join(__dirname, 'public');
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
 };
 
-const PUBLIC_DIR = path.join(__dirname, 'public');
+function sendJson(res, status, body) {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(body));
+}
 
-function serveStatic(req, res) {
-  const urlPath = req.url === '/' ? '/index.html' : req.url;
+function getSessionId(req) {
+  return parseCookies(req.headers.cookie)['sid'];
+}
+
+function serveStatic(req, res, pathname) {
+  const urlPath = pathname === '/' ? '/index.html' : pathname;
   const filePath = path.join(PUBLIC_DIR, path.normalize(urlPath));
 
   if (!filePath.startsWith(PUBLIC_DIR)) {
@@ -109,22 +49,96 @@ function serveStatic(req, res) {
 }
 
 const server = http.createServer(async (req, res) => {
-  if (req.url.startsWith('/api/top-games')) {
+  const url = new URL(req.url, BASE_URL);
+  const { pathname } = url;
+
+  if (pathname === '/api/top-games') {
     try {
       const games = await getTopGames();
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ games, fetchedAt: cache.fetchedAt }));
+      sendJson(res, 200, { games, fetchedAt: Date.now() });
     } catch (err) {
       console.error('Failed to fetch top games:', err.message);
-      res.writeHead(502, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to fetch data from Steam API' }));
+      sendJson(res, 502, { error: 'Failed to fetch data from Steam API' });
     }
     return;
   }
 
-  serveStatic(req, res);
+  if (pathname === '/auth/steam') {
+    const loginUrl = buildLoginUrl(`${BASE_URL}/auth/steam/callback`, BASE_URL);
+    res.writeHead(302, { Location: loginUrl });
+    res.end();
+    return;
+  }
+
+  if (pathname === '/auth/steam/callback') {
+    try {
+      const query = Object.fromEntries(url.searchParams.entries());
+      const steamid = await verifyAssertion(query);
+      if (!steamid) {
+        res.writeHead(302, { Location: '/?login=failed' });
+        res.end();
+        return;
+      }
+      const sid = createSession({ steamid });
+      res.writeHead(302, {
+        Location: '/',
+        'Set-Cookie': serializeCookie('sid', sid, { maxAge: 7 * 24 * 60 * 60 }),
+      });
+      res.end();
+    } catch (err) {
+      console.error('Steam login verification failed:', err.message);
+      res.writeHead(302, { Location: '/?login=failed' });
+      res.end();
+    }
+    return;
+  }
+
+  if (pathname === '/auth/logout' && req.method === 'POST') {
+    const sid = getSessionId(req);
+    if (sid) destroySession(sid);
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Set-Cookie': serializeCookie('sid', '', { maxAge: 0 }),
+    });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  if (pathname === '/api/me') {
+    const session = getSession(getSessionId(req));
+    if (!session) {
+      sendJson(res, 200, { loggedIn: false });
+      return;
+    }
+    const summary = await getPlayerSummary(session.steamid);
+    sendJson(res, 200, {
+      loggedIn: true,
+      steamid: session.steamid,
+      personaName: summary?.personaName || null,
+      avatar: summary?.avatar || null,
+    });
+    return;
+  }
+
+  if (pathname === '/api/recommendations') {
+    const session = getSession(getSessionId(req));
+    if (!session) {
+      sendJson(res, 401, { error: 'not_authenticated' });
+      return;
+    }
+    try {
+      const data = await buildRecommendations(session.steamid);
+      sendJson(res, 200, data);
+    } catch (err) {
+      console.error('Failed to build recommendations:', err.message);
+      sendJson(res, 502, { error: 'Failed to build recommendations' });
+    }
+    return;
+  }
+
+  serveStatic(req, res, pathname);
 });
 
 server.listen(PORT, () => {
-  console.log(`Steam Top Games running at http://localhost:${PORT}`);
+  console.log(`Steam Top Games running at ${BASE_URL}`);
 });
