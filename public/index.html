@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Steam Top 10 - Current Players</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Top 10 Steam Games</h1>
+      <p class="subtitle">Ranked by current concurrent players</p>
+      <div class="controls">
+        <button id="refresh-btn">Refresh</button>
+        <span id="updated-at"></span>
+      </div>
+    </header>
+
+    <div id="status"></div>
+    <ol id="game-list" class="game-list"></ol>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

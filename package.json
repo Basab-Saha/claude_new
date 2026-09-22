@@ -1,0 +1,13 @@
+{
+  "name": "steam-top-games",
+  "version": "1.0.0",
+  "description": "Simple website showing the top 10 Steam games by current player count",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
