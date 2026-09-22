@@ -8,6 +8,9 @@ const { createSession, getSession, destroySession } = require('./lib/sessions');
 const { buildLoginUrl, verifyAssertion } = require('./lib/steamOpenId');
 const { getPlayerSummary } = require('./lib/steamApi');
 const { buildRecommendations } = require('./lib/recommendations');
+const { MOOD_QUESTIONS, publicMoodQuestions } = require('./lib/moodQuestions');
+
+const MOOD_QUESTION_IDS = new Set(MOOD_QUESTIONS.map((q) => q.id));
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const MIME_TYPES = {
@@ -108,14 +111,24 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/api/mood-questions') {
+    sendJson(res, 200, { questions: publicMoodQuestions() });
+    return;
+  }
+
   if (pathname === '/api/recommendations') {
     const session = getSession(getSessionId(req));
     if (!session) {
       sendJson(res, 401, { error: 'not_authenticated' });
       return;
     }
+    const moodAnswers = {};
+    for (const id of MOOD_QUESTION_IDS) {
+      const value = url.searchParams.get(id);
+      if (value) moodAnswers[id] = value;
+    }
     try {
-      const data = await buildRecommendations(session.steamid);
+      const data = await buildRecommendations(session.steamid, moodAnswers);
       sendJson(res, 200, data);
     } catch (err) {
       console.error('Failed to build recommendations:', err.message);

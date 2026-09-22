@@ -129,6 +129,7 @@ button {
   font-weight: 600;
   padding: 8px 16px;
   border-radius: 6px;
+  border: none;
 }
 
 .steam-login:hover {
@@ -180,4 +181,74 @@ button {
 
 #recs-status.error {
   color: #ff6b6b;
+}
+
+.mood-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.secondary-btn {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 16px;
+  font-weight: 600;
+  border-radius: 6px;
+}
+
+.secondary-btn:hover {
+  border-color: var(--accent);
+}
+
+.mood-form {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.mood-question {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.mood-question legend {
+  font-weight: 600;
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.mood-option {
+  display: block;
+  color: var(--muted);
+  font-size: 0.9rem;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.mood-option:hover {
+  color: var(--text);
+}
+
+.mood-option input {
+  margin-right: 8px;
+}
+
+.mood-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mood-match strong {
+  color: var(--accent);
 }
