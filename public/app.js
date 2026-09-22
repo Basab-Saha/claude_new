@@ -67,7 +67,7 @@ function renderRecommendations(data) {
 
   recsStatusEl.textContent = '';
   recsSubtitleEl.textContent = data.topGenres?.length
-    ? `Based on your library's top genres: ${data.topGenres.join(', ')}`
+    ? `Based on hours played by genre: ${data.topGenres.map((t) => `${t.genre} (${t.hours}h)`).join(', ')}`
     : '';
 
   recsListEl.innerHTML = data.recommendations
@@ -75,7 +75,9 @@ function renderRecommendations(data) {
       gameCard(
         g,
         g.matchedGenres?.length
-          ? `<div class="players">Matches: <strong>${escapeHtml(g.matchedGenres.join(', '))}</strong></div>`
+          ? `<div class="players">Matches: <strong>${escapeHtml(
+              g.matchedGenres.map((m) => `${m.genre} (${m.hours}h)`).join(', ')
+            )}</strong></div>`
           : ''
       )
     )
