@@ -8,9 +8,9 @@ const { createSession, getSession, destroySession } = require('./lib/sessions');
 const { buildLoginUrl, verifyAssertion } = require('./lib/steamOpenId');
 const { getPlayerSummary } = require('./lib/steamApi');
 const { buildRecommendations } = require('./lib/recommendations');
-const { MOOD_QUESTIONS, publicMoodQuestions } = require('./lib/moodQuestions');
+const { publicSurveyQuestions } = require('./lib/survey');
 
-const MOOD_QUESTION_IDS = new Set(MOOD_QUESTIONS.map((q) => q.id));
+const MAX_BODY_BYTES = 16 * 1024;
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const MIME_TYPES = {
@@ -26,6 +26,34 @@ function sendJson(res, status, body) {
 
 function getSessionId(req) {
   return parseCookies(req.headers.cookie)['sid'];
+}
+
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        reject(new Error('Request body too large'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      if (chunks.length === 0) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+      } catch (err) {
+        reject(err);
+      }
+    });
+    req.on('error', reject);
+  });
 }
 
 function serveStatic(req, res, pathname) {
@@ -111,24 +139,33 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (pathname === '/api/mood-questions') {
-    sendJson(res, 200, { questions: publicMoodQuestions() });
+  if (pathname === '/api/survey-questions') {
+    sendJson(res, 200, publicSurveyQuestions());
     return;
   }
 
-  if (pathname === '/api/recommendations') {
+  // GET returns plain history-based recommendations (no survey answers).
+  // POST carries the survey form as a JSON body, since it includes
+  // multi-select arrays and free-text fields that don't fit cleanly in a
+  // query string.
+  if (pathname === '/api/recommendations' && (req.method === 'GET' || req.method === 'POST')) {
     const session = getSession(getSessionId(req));
     if (!session) {
       sendJson(res, 401, { error: 'not_authenticated' });
       return;
     }
-    const moodAnswers = {};
-    for (const id of MOOD_QUESTION_IDS) {
-      const value = url.searchParams.get(id);
-      if (value) moodAnswers[id] = value;
+    let answers = {};
+    if (req.method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        if (body && typeof body === 'object') answers = body;
+      } catch (err) {
+        sendJson(res, 400, { error: 'Invalid request body' });
+        return;
+      }
     }
     try {
-      const data = await buildRecommendations(session.steamid, moodAnswers);
+      const data = await buildRecommendations(session.steamid, answers);
       sendJson(res, 200, data);
     } catch (err) {
       console.error('Failed to build recommendations:', err.message);

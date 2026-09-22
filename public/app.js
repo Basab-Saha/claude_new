@@ -1,16 +1,16 @@
 const authBarEl = document.getElementById('auth-bar');
 const signedOutEl = document.getElementById('signed-out');
-const moodControlsEl = document.getElementById('mood-controls');
-const moodBtn = document.getElementById('mood-btn');
-const moodClearBtn = document.getElementById('mood-clear-btn');
-const moodFormEl = document.getElementById('mood-form');
+const surveyControlsEl = document.getElementById('survey-controls');
+const surveyBtn = document.getElementById('survey-btn');
+const surveyClearBtn = document.getElementById('survey-clear-btn');
+const surveyFormEl = document.getElementById('survey-form');
 const recsSectionEl = document.getElementById('recs-section');
 const recsSubtitleEl = document.getElementById('recs-subtitle');
 const recsStatusEl = document.getElementById('recs-status');
 const recsListEl = document.getElementById('recs-list');
 
-let moodQuestions = null;
-let currentMoodAnswers = {};
+let surveyDef = null; // { sections, questions }
+let currentAnswers = {};
 
 function escapeHtml(str) {
   const div = document.createElement('div');
@@ -36,7 +36,7 @@ function renderAuthBar(me) {
   if (!me.loggedIn) {
     authBarEl.innerHTML = '';
     signedOutEl.hidden = false;
-    moodControlsEl.hidden = true;
+    surveyControlsEl.hidden = true;
     recsSectionEl.hidden = true;
     return;
   }
@@ -67,7 +67,7 @@ function renderRecommendations(data) {
   }
 
   if (!data.recommendations || data.recommendations.length === 0) {
-    recsStatusEl.textContent = 'No matches found in the current top sellers / new releases yet.';
+    recsStatusEl.textContent = 'No matches found in the current storefront listings yet — try clearing a filter or two.';
     recsListEl.innerHTML = '';
     recsSubtitleEl.textContent = '';
     return;
@@ -76,8 +76,8 @@ function renderRecommendations(data) {
   recsStatusEl.textContent = '';
 
   const subtitleParts = [];
-  if (data.moodApplied && data.topMoodTags?.length) {
-    subtitleParts.push(`Right now: ${data.topMoodTags.map((t) => t.tag).join(', ')}`);
+  if (data.surveyApplied && data.topSurveyTags?.length) {
+    subtitleParts.push(`Right now: ${data.topSurveyTags.map((t) => t.tag).join(', ')}`);
   }
   if (data.topGenres?.length) {
     subtitleParts.push(`Your top genres: ${data.topGenres.map((t) => `${t.genre} (${t.hours}h)`).join(', ')}`);
@@ -87,10 +87,10 @@ function renderRecommendations(data) {
   recsListEl.innerHTML = data.recommendations
     .map((g) => {
       const lines = [];
-      if (g.matchedMood?.length) {
+      if (g.matchedSurvey?.length) {
         lines.push(
-          `<div class="players mood-match">Matches your mood: <strong>${escapeHtml(
-            g.matchedMood.map((m) => m.tag).join(', ')
+          `<div class="players mood-match">Matches what you want right now: <strong>${escapeHtml(
+            g.matchedSurvey.map((m) => m.tag).join(', ')
           )}</strong></div>`
         );
       }
@@ -113,8 +113,12 @@ async function loadRecommendations() {
   recsListEl.innerHTML = '';
 
   try {
-    const params = new URLSearchParams(currentMoodAnswers);
-    const res = await fetch(`/api/recommendations?${params.toString()}`);
+    const hasAnswers = Object.keys(currentAnswers).length > 0;
+    const res = await fetch('/api/recommendations', {
+      method: hasAnswers ? 'POST' : 'GET',
+      headers: hasAnswers ? { 'Content-Type': 'application/json' } : undefined,
+      body: hasAnswers ? JSON.stringify(currentAnswers) : undefined,
+    });
     if (res.status === 401) {
       recsSectionEl.hidden = true;
       return;
@@ -127,69 +131,136 @@ async function loadRecommendations() {
   }
 }
 
-function renderMoodForm() {
-  moodFormEl.innerHTML =
-    moodQuestions
-      .map(
-        (q) => `
-        <fieldset class="mood-question">
-          <legend>${escapeHtml(q.question)}</legend>
-          ${q.options
-            .map(
-              (o) => `
-              <label class="mood-option">
-                <input type="radio" name="${escapeHtml(q.id)}" value="${escapeHtml(o.id)}"
-                  ${currentMoodAnswers[q.id] === o.id ? 'checked' : ''} />
-                ${escapeHtml(o.label)}
-              </label>`
-            )
-            .join('')}
-        </fieldset>`
-      )
-      .join('') +
+function questionFieldHtml(q) {
+  const showIfAttrs = q.showIf
+    ? `data-show-if-question="${escapeHtml(q.showIf.question)}" data-show-if-values="${escapeHtml(q.showIf.in.join('|'))}"`
+    : '';
+
+  if (q.type === 'text') {
+    return `
+      <fieldset class="mood-question" ${showIfAttrs}>
+        <legend>${escapeHtml(q.question)}</legend>
+        <input type="text" name="${escapeHtml(q.id)}" placeholder="${escapeHtml(q.placeholder || '')}" class="survey-text" />
+      </fieldset>`;
+  }
+
+  const inputType = q.type === 'multi' ? 'checkbox' : 'radio';
+  return `
+    <fieldset class="mood-question" ${showIfAttrs} ${q.type === 'multi' ? `data-max-select="${q.maxSelect || ''}"` : ''}>
+      <legend>${escapeHtml(q.question)}${q.type === 'multi' && q.maxSelect ? ` <span class="max-select-note">(choose up to ${q.maxSelect})</span>` : ''}</legend>
+      ${q.note ? `<p class="mood-question-note">${escapeHtml(q.note)}</p>` : ''}
+      ${q.options
+        .map(
+          (o) => `
+          <label class="mood-option">
+            <input type="${inputType}" name="${escapeHtml(q.id)}" value="${escapeHtml(o.id)}" />
+            ${escapeHtml(o.label)}
+          </label>`
+        )
+        .join('')}
+    </fieldset>`;
+}
+
+function renderSurveyForm() {
+  const bySection = surveyDef.sections
+    .map((section) => {
+      const questions = surveyDef.questions.filter((q) => q.section === section.id);
+      if (questions.length === 0) return '';
+      return `
+        <div class="survey-section">
+          <h3>${escapeHtml(section.title)}</h3>
+          ${questions.map(questionFieldHtml).join('')}
+        </div>`;
+    })
+    .join('');
+
+  surveyFormEl.innerHTML =
+    bySection +
     `<div class="mood-form-actions">
        <button type="submit" class="steam-login">Get recommendations</button>
-       <button type="button" id="mood-cancel-btn" class="link-btn">Cancel</button>
+       <button type="button" id="survey-cancel-btn" class="link-btn">Cancel</button>
      </div>`;
 
-  document.getElementById('mood-cancel-btn').addEventListener('click', () => {
-    moodFormEl.hidden = true;
+  document.getElementById('survey-cancel-btn').addEventListener('click', () => {
+    surveyFormEl.hidden = true;
+  });
+
+  enforceMultiSelectLimits();
+  updateConditionalVisibility();
+}
+
+function enforceMultiSelectLimits() {
+  surveyFormEl.querySelectorAll('fieldset[data-max-select]').forEach((fieldset) => {
+    const max = Number(fieldset.dataset.maxSelect);
+    if (!max) return;
+    const checkboxes = [...fieldset.querySelectorAll('input[type="checkbox"]')];
+    const checkedCount = checkboxes.filter((c) => c.checked).length;
+    checkboxes.forEach((c) => {
+      c.disabled = !c.checked && checkedCount >= max;
+    });
   });
 }
 
-async function openMoodForm() {
-  if (!moodQuestions) {
+function updateConditionalVisibility() {
+  const formData = new FormData(surveyFormEl);
+  surveyFormEl.querySelectorAll('fieldset[data-show-if-question]').forEach((fieldset) => {
+    const question = fieldset.dataset.showIfQuestion;
+    const allowed = fieldset.dataset.showIfValues.split('|');
+    const currentValue = formData.get(question);
+    fieldset.hidden = !allowed.includes(currentValue);
+  });
+}
+
+surveyFormEl.addEventListener('change', () => {
+  enforceMultiSelectLimits();
+  updateConditionalVisibility();
+});
+
+async function openSurveyForm() {
+  if (!surveyDef) {
     try {
-      const res = await fetch('/api/mood-questions');
-      const data = await res.json();
-      moodQuestions = data.questions;
+      const res = await fetch('/api/survey-questions');
+      surveyDef = await res.json();
     } catch (err) {
-      recsStatusEl.textContent = 'Could not load the mood check-in. Please try again.';
+      recsStatusEl.textContent = 'Could not load the survey. Please try again.';
       recsStatusEl.classList.add('error');
       return;
     }
   }
-  renderMoodForm();
-  moodFormEl.hidden = false;
+  renderSurveyForm();
+  surveyFormEl.hidden = false;
+  surveyFormEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-moodBtn.addEventListener('click', () => {
-  moodFormEl.hidden ? openMoodForm() : (moodFormEl.hidden = true);
+surveyBtn.addEventListener('click', () => {
+  surveyFormEl.hidden ? openSurveyForm() : (surveyFormEl.hidden = true);
 });
 
-moodFormEl.addEventListener('submit', async (e) => {
+surveyFormEl.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const formData = new FormData(moodFormEl);
-  currentMoodAnswers = Object.fromEntries(formData.entries());
-  moodClearBtn.hidden = Object.keys(currentMoodAnswers).length === 0;
-  moodFormEl.hidden = true;
+  const formData = new FormData(surveyFormEl);
+  const answers = {};
+
+  for (const q of surveyDef.questions) {
+    if (q.type === 'multi') {
+      const values = formData.getAll(q.id);
+      if (values.length) answers[q.id] = values;
+    } else {
+      const value = formData.get(q.id);
+      if (value) answers[q.id] = value.toString().trim();
+    }
+  }
+
+  currentAnswers = answers;
+  surveyClearBtn.hidden = Object.keys(currentAnswers).length === 0;
+  surveyFormEl.hidden = true;
   await loadRecommendations();
 });
 
-moodClearBtn.addEventListener('click', async () => {
-  currentMoodAnswers = {};
-  moodClearBtn.hidden = true;
-  moodFormEl.hidden = true;
+surveyClearBtn.addEventListener('click', async () => {
+  currentAnswers = {};
+  surveyClearBtn.hidden = true;
+  surveyFormEl.hidden = true;
   await loadRecommendations();
 });
 
@@ -199,7 +270,7 @@ async function loadAuth() {
     const me = await res.json();
     renderAuthBar(me);
     if (me.loggedIn) {
-      moodControlsEl.hidden = false;
+      surveyControlsEl.hidden = false;
       await loadRecommendations();
     }
   } catch (err) {

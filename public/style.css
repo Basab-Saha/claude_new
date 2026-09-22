@@ -213,6 +213,28 @@ button {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.survey-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.survey-section:last-of-type {
+  border-bottom: none;
+}
+
+.survey-section h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .mood-question {
@@ -225,6 +247,18 @@ button {
   font-weight: 600;
   margin-bottom: 8px;
   padding: 0;
+}
+
+.max-select-note {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.mood-question-note {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .mood-option {
@@ -243,10 +277,34 @@ button {
   margin-right: 8px;
 }
 
+.mood-option input:disabled {
+  cursor: not-allowed;
+}
+
+.mood-option:has(input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.survey-text {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
 .mood-form-actions {
   display: flex;
   align-items: center;
   gap: 12px;
+  position: sticky;
+  bottom: -20px;
+  background: var(--panel);
+  padding: 12px 0 4px;
 }
 
 .mood-match strong {
