@@ -1,15 +1,9 @@
-# Steam Top 10 Games
+# Steam Game Recommendations
 
-A simple website that shows the top 10 Steam games ranked by current concurrent player count, and — once you sign in with Steam — personalized recommendations based on your own library.
+A simple website that recommends games to you based on your own Steam library.
 
 ## How it works
 
-### Top 10 games
-- Calls Steam's public `ISteamChartsService/GetMostPlayedGames` endpoint to get the most-played app IDs.
-- Fetches each game's real live player count from `ISteamUserStats/GetNumberOfCurrentPlayers`, and its name/header image from the Steam Store `appdetails` API.
-- Caches the combined result for 60 seconds. Exposed at `GET /api/top-games`. No API key required.
-
-### Recommendations
 - "Sign in through Steam" uses Steam's OpenID 2.0 login — you authenticate directly on steamcommunity.com, and Steam redirects back with your SteamID. No password ever touches this app.
 - Once signed in, the server calls `IPlayerService/GetOwnedGames` to read your library (this **requires a Steam Web API key** and your profile's *Game details* privacy set to **Public**).
 - It looks at your 20 most-played owned games, fetches their genres, and builds a weighted genre profile (playtime-weighted, so one 2,000-hour game doesn't dominate).
@@ -40,5 +34,5 @@ Steam only returns your owned-games list if your profile's **Game details** priv
 ## Notes
 
 - Requires Node.js 18+ (uses the built-in `fetch`).
-- Sessions are stored in memory (a signed-cookie session ID mapped to your SteamID), so they reset if the server restarts. Fine for local/personal use; swap in a real session/data store for production.
-- The `GetMostPlayedGames` and `featuredcategories` (top sellers / new releases) endpoints are undocumented but widely used; Valve could change their shape without notice.
+- Sessions are stored in memory (a random session ID cookie mapped to your SteamID), so they reset if the server restarts. Fine for local/personal use; swap in a real session/data store for production.
+- The `featuredcategories` (top sellers / new releases / specials) endpoint is undocumented but widely used; Valve could change its shape without notice.

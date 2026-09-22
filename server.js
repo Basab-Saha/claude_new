@@ -7,7 +7,6 @@ const { parseCookies, serializeCookie } = require('./lib/cookies');
 const { createSession, getSession, destroySession } = require('./lib/sessions');
 const { buildLoginUrl, verifyAssertion } = require('./lib/steamOpenId');
 const { getPlayerSummary } = require('./lib/steamApi');
-const { getTopGames } = require('./lib/topGames');
 const { buildRecommendations } = require('./lib/recommendations');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -51,17 +50,6 @@ function serveStatic(req, res, pathname) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, BASE_URL);
   const { pathname } = url;
-
-  if (pathname === '/api/top-games') {
-    try {
-      const games = await getTopGames();
-      sendJson(res, 200, { games, fetchedAt: Date.now() });
-    } catch (err) {
-      console.error('Failed to fetch top games:', err.message);
-      sendJson(res, 502, { error: 'Failed to fetch data from Steam API' });
-    }
-    return;
-  }
 
   if (pathname === '/auth/steam') {
     const loginUrl = buildLoginUrl(`${BASE_URL}/auth/steam/callback`, BASE_URL);
@@ -140,5 +128,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Steam Top Games running at ${BASE_URL}`);
+  console.log(`Steam Recommendations running at ${BASE_URL}`);
 });

@@ -40,46 +40,10 @@ h1 {
   color: var(--muted);
 }
 
-.controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-}
-
 button {
-  background: var(--accent);
-  color: #0b1622;
-  border: none;
-  border-radius: 6px;
-  padding: 8px 16px;
-  font-weight: 600;
   cursor: pointer;
-}
-
-button:hover {
-  filter: brightness(1.1);
-}
-
-button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-#updated-at {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-#status {
-  text-align: center;
-  color: var(--muted);
-  min-height: 1.2em;
-  margin-bottom: 12px;
-}
-
-#status.error {
-  color: #ff6b6b;
+  font-family: inherit;
+  border-radius: 6px;
 }
 
 .game-list {
@@ -194,20 +158,17 @@ button:disabled {
   font-size: 0.85rem;
 }
 
-.recs-section {
-  margin-top: 40px;
-  border-top: 1px solid var(--border);
-  padding-top: 24px;
-}
-
-.recs-header {
+.signed-out {
   text-align: center;
-  margin-bottom: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 32px 16px;
 }
 
-.recs-header h2 {
-  margin: 0 0 4px;
-  font-size: 1.4rem;
+.signed-out p {
+  color: var(--muted);
+  margin: 0 0 16px;
 }
 
 #recs-status {

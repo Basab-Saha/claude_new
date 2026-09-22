@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Steam Top 10 - Current Players</title>
+  <title>Steam Game Recommendations</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
@@ -11,22 +11,17 @@
     <div id="auth-bar" class="auth-bar"></div>
 
     <header>
-      <h1>Top 10 Steam Games</h1>
-      <p class="subtitle">Ranked by current concurrent players</p>
-      <div class="controls">
-        <button id="refresh-btn">Refresh</button>
-        <span id="updated-at"></span>
-      </div>
+      <h1>Recommended For You</h1>
+      <p class="subtitle">Picked from what's popular on Steam right now, based on your own library</p>
     </header>
 
-    <div id="status"></div>
-    <ol id="game-list" class="game-list"></ol>
+    <div id="signed-out" class="signed-out" hidden>
+      <p>Sign in with Steam to see game recommendations based on your library.</p>
+      <a class="steam-login" href="/auth/steam">Sign in through Steam</a>
+    </div>
 
-    <section id="recs-section" class="recs-section" hidden>
-      <header class="recs-header">
-        <h2>Recommended For You</h2>
-        <p id="recs-subtitle" class="subtitle"></p>
-      </header>
+    <section id="recs-section" hidden>
+      <p id="recs-subtitle" class="subtitle"></p>
       <div id="recs-status"></div>
       <ol id="recs-list" class="game-list"></ol>
     </section>

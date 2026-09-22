@@ -1,7 +1,7 @@
 {
-  "name": "steam-top-games",
+  "name": "steam-recommendations",
   "version": "1.0.0",
-  "description": "Simple website showing the top 10 Steam games by current player count",
+  "description": "Personalized Steam game recommendations based on your own library",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {

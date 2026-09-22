@@ -1,9 +1,5 @@
-const listEl = document.getElementById('game-list');
-const statusEl = document.getElementById('status');
-const updatedAtEl = document.getElementById('updated-at');
-const refreshBtn = document.getElementById('refresh-btn');
-
 const authBarEl = document.getElementById('auth-bar');
+const signedOutEl = document.getElementById('signed-out');
 const recsSectionEl = document.getElementById('recs-section');
 const recsSubtitleEl = document.getElementById('recs-subtitle');
 const recsStatusEl = document.getElementById('recs-status');
@@ -13,14 +9,6 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str ?? '';
   return div.innerHTML;
-}
-
-function formatPlayers(n) {
-  return new Intl.NumberFormat('en-US').format(n);
-}
-
-function formatTime(ms) {
-  return new Date(ms).toLocaleTimeString();
 }
 
 function gameCard(g, extraLine) {
@@ -37,39 +25,15 @@ function gameCard(g, extraLine) {
     </li>`;
 }
 
-function render(games) {
-  listEl.innerHTML = games
-    .map((g) => gameCard(g, `<div class="players"><strong>${formatPlayers(g.currentPlayers)}</strong> playing now</div>`))
-    .join('');
-}
-
-async function loadGames() {
-  refreshBtn.disabled = true;
-  statusEl.textContent = 'Loading...';
-  statusEl.classList.remove('error');
-
-  try {
-    const res = await fetch('/api/top-games');
-    if (!res.ok) throw new Error('Request failed');
-    const data = await res.json();
-    render(data.games);
-    statusEl.textContent = '';
-    updatedAtEl.textContent = `Updated ${formatTime(data.fetchedAt)}`;
-  } catch (err) {
-    statusEl.textContent = 'Could not load data from the Steam API. Please try again.';
-    statusEl.classList.add('error');
-  } finally {
-    refreshBtn.disabled = false;
-  }
-}
-
 function renderAuthBar(me) {
   if (!me.loggedIn) {
-    authBarEl.innerHTML = `
-      <a class="steam-login" href="/auth/steam">Sign in through Steam</a>`;
+    authBarEl.innerHTML = '';
+    signedOutEl.hidden = false;
+    recsSectionEl.hidden = true;
     return;
   }
 
+  signedOutEl.hidden = true;
   authBarEl.innerHTML = `
     <div class="account">
       ${me.avatar ? `<img class="avatar" src="${escapeHtml(me.avatar)}" alt="" />` : ''}
@@ -119,6 +83,11 @@ function renderRecommendations(data) {
 }
 
 async function loadRecommendations() {
+  recsSectionEl.hidden = false;
+  recsStatusEl.textContent = 'Loading...';
+  recsStatusEl.classList.remove('error');
+  recsListEl.innerHTML = '';
+
   try {
     const res = await fetch('/api/recommendations');
     if (res.status === 401) {
@@ -128,7 +97,6 @@ async function loadRecommendations() {
     if (!res.ok) throw new Error('Request failed');
     renderRecommendations(await res.json());
   } catch (err) {
-    recsSectionEl.hidden = false;
     recsStatusEl.textContent = 'Could not load recommendations. Please try again.';
     recsStatusEl.classList.add('error');
   }
@@ -141,14 +109,10 @@ async function loadAuth() {
     renderAuthBar(me);
     if (me.loggedIn) {
       await loadRecommendations();
-    } else {
-      recsSectionEl.hidden = true;
     }
   } catch (err) {
     renderAuthBar({ loggedIn: false });
   }
 }
 
-refreshBtn.addEventListener('click', loadGames);
-loadGames();
 loadAuth();
